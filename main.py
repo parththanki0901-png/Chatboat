@@ -1,7 +1,9 @@
 from sys import exception
+import dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from google.genai.errors import ClientError
+from groq import Groq
+from dotenv import load_dotenv
 from requests import Session
 from app.services.gemini_service import get_all_sessions_with_messages, get_gemini_response, delete_session
 from pydantic import BaseModel 
