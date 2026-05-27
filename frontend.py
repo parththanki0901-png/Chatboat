@@ -62,7 +62,7 @@ if text:
             json=data
         )
         response_data = response.json()
-        st.write(response_data)
+
 
         if "reply" in response_data:
 

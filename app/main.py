@@ -1,110 +1,82 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import google.generativeai as genai
 from dotenv import load_dotenv
-import os
+from pydantic import BaseModel
 
+from app.services.gemini_service import (
+    get_gemini_response,
+    get_all_sessions_with_messages,
+    delete_session
+)
+
+# Load environment variables
 load_dotenv()
 
 app = FastAPI()
 
-
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class Chatrequest(BaseModel):
-    session_id: str
+# Request body
+class ChatRequest(BaseModel):
     message: str
+    session_id: str
 
 
-# Load API key
-api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-
-if not api_key:
-    raise RuntimeError(
-        "Missing Gemini API key"
-    )
-
-# Configure Gemini
-genai.configure(api_key=api_key)
-
-# Load Gemini model
-model = genai.GenerativeModel("gemini-flash-latest")
-
-# Store chat history in memory
-chat_sessions = {}
-
-
-# Chat endpoint
+# Chat API
 @app.post("/chat")
-def chat(request: Chatrequest):
+async def chat(request: ChatRequest):
 
     try:
-        # Get session ID
-        session_id = request.session_id
 
-        # Create new session if it does not exist
-        if session_id not in chat_sessions:
-            chat_sessions[session_id] = []
-
-        # Load old conversation history
-        history = chat_sessions[session_id]
-
-        # Start Gemini chat with history
-        chat = model.start_chat(history=history)
-
-        # Send current user message
-        response = chat.send_message(request.message)
-
-        # Save user message
-        history.append({
-            "role": "user",
-            "parts": [request.message]
-        })
-
-        # Save Gemini response
-        history.append({
-            "role": "model",
-            "parts": [response.text]
-        })
-
-        # Return response
-        return {
-            "reply": response.text
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
+        reply = await get_gemini_response(
+            request.message,
+            request.session_id
         )
 
+        return {
+            "reply": reply,
+            "session_id": request.session_id
+        }
 
-# Delete chat history
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc)
+        ) from exc
+
+
+# Delete chat session
 @app.delete("/chat/{session_id}")
-def delete_chat(session_id: str):
+async def delete_chat_session(session_id: str):
 
-    if session_id not in chat_sessions:
+    deleted = delete_session(session_id)
+
+    if not deleted:
+
         raise HTTPException(
             status_code=404,
             detail="Session not found"
         )
 
-    del chat_sessions[session_id]
-
     return {
-        "message": f"Chat history for session '{session_id}' deleted"
+        "message": "Session deleted successfully"
     }
 
 
-# Root endpoint
-@app.get("/")
-def root():
+# Get all sessions
+@app.get("/chat")
+async def root():
+
     return {
-        "status": "Chat API is running"
+        "sessions": get_all_sessions_with_messages()
     }
