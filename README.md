@@ -1,4 +1,4 @@
-# Chatboard API
+# Chatboat API
 
 AI chatbot backend built using FastAPI and Groq API.
 
